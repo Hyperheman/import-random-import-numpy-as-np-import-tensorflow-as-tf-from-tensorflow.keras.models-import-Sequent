@@ -1,0 +1,75 @@
+import random
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Embedding, LSTM, Dense
+from flask import Flask, render_template, request
+
+app = Flask(__name__)
+
+# Step 2: Gather and Prepare the Data
+# Load the data from a file or database, preprocess and tokenize it
+# For this example, we'll create a simple dataset
+questions = [
+    "What is your name?",
+    "How old are you?",
+    "Where are you from?",
+    "What are your hobbies?",
+    "What do you like to eat?",
+    "What is your favorite color?"
+]
+
+answers = [
+    "My name is Chatbot.",
+    "I am an AI, so I don't have an age.",
+    "I was created in a lab in the USA.",
+    "I don't have hobbies, but I love to chat with humans.",
+    "I don't eat, as I am an AI.",
+    "My favorite color is green."
+]
+
+# Tokenize the data
+tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=10000)
+tokenizer.fit_on_texts(questions + answers)
+
+# Step 3: Build the Neural Network
+vocab_size = len(tokenizer.word_index) + 1
+embedding_size = 100
+max_len = 20
+
+model = Sequential()
+model.add(Embedding(vocab_size, embedding_size, input_length=max_len))
+model.add(LSTM(units=128))
+model.add(Dense(units=vocab_size, activation='softmax'))
+
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Step 4: Train the Neural Network
+# Define your training data and labels here
+# Compile and train the model using the fit() method
+# For this example, we'll use the questions as the input and answers as the output
+
+question_seqs = tokenizer.texts_to_sequences(questions)
+padded_questions = tf.keras.preprocessing.sequence.pad_sequences(question_seqs, maxlen=max_len, padding='post')
+answer_seqs = tokenizer.texts_to_sequences(answers)
+padded_answers = tf.keras.preprocessing.sequence.pad_sequences(answer_seqs, maxlen=max_len, padding='post')
+
+model.fit(padded_questions, padded_answers, batch_size=32, epochs=100)
+
+# Step 5: Create a Flask Web Application
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/get')
+def chatbot_response():
+    user_input = request.args.get('msg')
+    input_seq = tokenizer.texts_to_sequences([user_input])
+    padded_input_seq = tf.keras.preprocessing.sequence.pad_sequences(input_seq, maxlen=max_len, padding='post')
+    pred = model.predict(padded_input_seq)[0]
+    pred_index = np.argmax(pred)
+    response = tokenizer.index_word[pred_index]
+    return str(response)
+
+if __name__ == '__main__':
+    app.run(debug=True)
